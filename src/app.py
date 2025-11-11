@@ -13,11 +13,29 @@ from pathlib import Path
 
 app = FastAPI(title="Mergington High School API",
               description="API for viewing and signing up for extracurricular activities")
+import json
+from fastapi import Request
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.middleware.sessions import SessionMiddleware
+
+# Add session middleware for teacher login
+app.add_middleware(SessionMiddleware, secret_key="your-secret-key-change-this")
 
 # Mount the static files directory
 current_dir = Path(__file__).parent
 app.mount("/static", StaticFiles(directory=os.path.join(Path(__file__).parent,
           "static")), name="static")
+
+# Load teacher credentials
+def load_teachers():
+    teachers_file = os.path.join(Path(__file__).parent, "teachers.json")
+    if os.path.exists(teachers_file):
+        with open(teachers_file, 'r') as f:
+            data = json.load(f)
+            return data.get("teachers", [])
+    return []
+
+TEACHERS = load_teachers()
 
 # In-memory activity database
 activities = {
@@ -130,3 +148,29 @@ def unregister_from_activity(activity_name: str, email: str):
     # Remove student
     activity["participants"].remove(email)
     return {"message": f"Unregistered {email} from {activity_name}"}
+
+
+@app.post("/api/login")
+def login(request: Request, username: str, password: str):
+    """Teacher login endpoint"""
+    # Check if credentials are valid
+    for teacher in TEACHERS:
+        if teacher["username"] == username and teacher["password"] == password:
+            request.session["teacher"] = username
+            return {"success": True, "message": f"Welcome {username}!"}
+    
+    return {"success": False, "message": "Invalid username or password"}
+
+
+@app.post("/api/logout")
+def logout(request: Request):
+    """Teacher logout endpoint"""
+    request.session.pop("teacher", None)
+    return {"success": True, "message": "Logged out successfully"}
+
+
+@app.get("/api/teacher-status")
+def get_teacher_status(request: Request):
+    """Get current teacher login status"""
+    teacher = request.session.get("teacher")
+    return {"logged_in": teacher is not None, "username": teacher}
