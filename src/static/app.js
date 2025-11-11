@@ -4,6 +4,133 @@ document.addEventListener("DOMContentLoaded", () => {
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
 
+  // Login/Logout UI Elements
+  const userIcon = document.getElementById("user-icon");
+  const loginModal = document.getElementById("login-modal");
+  const closeModal = document.querySelector(".close-modal");
+  const loginForm = document.getElementById("login-form");
+  const loginMessage = document.getElementById("login-message");
+  const teacherDashboard = document.getElementById("teacher-dashboard");
+  const teacherName = document.getElementById("teacher-name");
+  const logoutBtn = document.getElementById("logout-btn");
+  const signupContainer = document.getElementById("signup-container");
+
+  // Check if teacher is logged in on page load
+  async function checkTeacherStatus() {
+    try {
+      const response = await fetch("/api/teacher-status");
+      const data = await response.json();
+      
+      if (data.logged_in) {
+        showTeacherDashboard(data.username);
+        signupContainer.innerHTML = "<p>Teacher mode is active. Only teachers can register/unregister students.</p>";
+      }
+    } catch (error) {
+      console.error("Error checking teacher status:", error);
+    }
+  }
+
+  // Show teacher dashboard
+  function showTeacherDashboard(username) {
+    teacherDashboard.classList.remove("hidden");
+    teacherName.textContent = `Logged in as: ${username}`;
+    userIcon.textContent = "👨‍🏫";
+    userIcon.style.backgroundColor = "#4CAF50";
+  }
+
+  // Hide teacher dashboard
+  function hideTeacherDashboard() {
+    teacherDashboard.classList.add("hidden");
+    userIcon.textContent = "👤";
+    userIcon.style.backgroundColor = "transparent";
+    signupContainer.innerHTML = `
+      <h3>Sign Up for an Activity</h3>
+      <form id="signup-form">
+        <div class="form-group">
+          <label for="email">Student Email:</label>
+          <input type="email" id="email" required placeholder="your-email@mergington.edu" />
+        </div>
+        <div class="form-group">
+          <label for="activity">Select Activity:</label>
+          <select id="activity" required>
+            <option value="">-- Select an activity --</option>
+          </select>
+        </div>
+        <button type="submit">Sign Up</button>
+      </form>
+      <div id="message" class="hidden"></div>
+    `;
+  }
+
+  // Handle user icon click - open login modal
+  userIcon.addEventListener("click", () => {
+    loginModal.classList.remove("hidden");
+  });
+
+  // Handle close modal
+  closeModal.addEventListener("click", () => {
+    loginModal.classList.add("hidden");
+    loginMessage.classList.add("hidden");
+  });
+
+  // Close modal when clicking outside
+  window.addEventListener("click", (event) => {
+    if (event.target === loginModal) {
+      loginModal.classList.add("hidden");
+      loginMessage.classList.add("hidden");
+    }
+  });
+
+  // Handle login form submission
+  loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const username = document.getElementById("teacher-username").value;
+    const password = document.getElementById("teacher-password").value;
+
+    try {
+      const response = await fetch(`/api/login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`, {
+        method: "POST",
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        loginMessage.textContent = result.message;
+        loginMessage.className = "success";
+        loginForm.reset();
+        setTimeout(() => {
+          loginModal.classList.add("hidden");
+          loginMessage.classList.add("hidden");
+          checkTeacherStatus();
+        }, 1500);
+      } else {
+        loginMessage.textContent = result.message;
+        loginMessage.className = "error";
+      }
+      loginMessage.classList.remove("hidden");
+    } catch (error) {
+      loginMessage.textContent = "Failed to login. Please try again.";
+      loginMessage.className = "error";
+      loginMessage.classList.remove("hidden");
+      console.error("Login error:", error);
+    }
+  });
+
+  // Handle logout
+  logoutBtn.addEventListener("click", async () => {
+    try {
+      const response = await fetch("/api/logout", { method: "POST" });
+      const result = await response.json();
+      
+      if (result.success) {
+        hideTeacherDashboard();
+        checkTeacherStatus();
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  });
+
   // Function to fetch activities from API
   async function fetchActivities() {
     try {
@@ -157,4 +284,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Initialize app
   fetchActivities();
+    checkTeacherStatus();
 });
